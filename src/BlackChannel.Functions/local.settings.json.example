@@ -1,0 +1,18 @@
+{
+  "_comment": "Copy this file to 'local.settings.json' for local development (that file is gitignored). The SignalR value below points at the local Azure SignalR emulator (asrs-emulator) — see the README 'Run it locally' section.",
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "STORAGE_ACCOUNT_NAME": "",
+    "ENVELOPE_CONTAINER": "envelopes",
+    "AzureSignalRConnectionString": "Endpoint=http://localhost;Port=8888;AccessKey=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGH;Version=1.0;",
+    "ENTRA_AUTHORITY": "",
+    "ENTRA_AUDIENCE": "",
+    "PUBLIC_SITE_URL": "http://localhost:5173"
+  },
+  "Host": {
+    "CORS": "http://localhost:5173,http://localhost:5000",
+    "CORSCredentials": false
+  }
+}

@@ -1,0 +1,111 @@
+@page "/chat"
+@implements IAsyncDisposable
+@inject ApiClient Api
+@inject IMessageCrypto Crypto
+@inject RealtimeService Realtime
+@inject IUserSession Session
+@inject NavigationManager Nav
+
+@if (string.IsNullOrEmpty(With))
+{
+    <div class="chat"><div class="chat-empty">
+        No conversation selected. <a href="invite">Invite a mate</a> to start one.
+    </div></div>
+}
+else
+{
+    <div class="chat">
+        @if (_peerKey is null && _loaded)
+        {
+            <div class="chat-empty">
+                Waiting for <strong>@With</strong> to set up their keys. They need to open the app once.
+            </div>
+        }
+        <div class="chat-log">
+            @foreach (var m in _messages)
+            {
+                <div class="bubble @(m.Mine ? "mine" : "theirs")">
+                    @m.Text
+                    <span class="meta">@m.At.ToLocalTime().ToString("HH:mm")</span>
+                </div>
+            }
+        </div>
+        <div class="compose">
+            <textarea @bind="_draft" @bind:event="oninput" rows="2"
+                      placeholder="Type a message — encrypted before it leaves your device"
+                      @onkeydown="OnKeyDown"></textarea>
+            <button class="primary" @onclick="SendAsync" disabled="@(_peerKey is null || string.IsNullOrWhiteSpace(_draft))">
+                Send
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? With { get; set; }
+
+    private record Msg(bool Mine, string Text, DateTimeOffset At);
+
+    private readonly List<Msg> _messages = new();
+    private string _draft = "";
+    private string? _peerKey;
+    private string? _me;
+    private bool _loaded;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _me = await Session.GetUserIdAsync();
+        await Crypto.EnsureIdentityAsync();
+
+        Realtime.EnvelopeReceived += OnEnvelope;
+        await Realtime.ConnectAsync();
+
+        // Pull anything that arrived while we were away, and decrypt it.
+        foreach (var env in await Api.SyncAsync())
+            await DisplayIncomingAsync(env);
+
+        if (!string.IsNullOrEmpty(With))
+        {
+            var bundle = await Api.GetKeyAsync(With);
+            _peerKey = bundle?.IdentityPublicKey;
+        }
+        _loaded = true;
+        StateHasChanged();
+    }
+
+    private async Task SendAsync()
+    {
+        if (_peerKey is null || string.IsNullOrWhiteSpace(_draft) || With is null) return;
+
+        var text = _draft.Trim();
+        _draft = "";
+
+        var envelope = await Crypto.SealAsync(With, _peerKey, text);
+        await Api.SendAsync(envelope);
+        _messages.Add(new Msg(true, text, DateTimeOffset.UtcNow)); // show our own plaintext locally
+    }
+
+    private async void OnEnvelope(SealedEnvelope env)
+    {
+        await DisplayIncomingAsync(env);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task DisplayIncomingAsync(SealedEnvelope env)
+    {
+        var text = await Crypto.OpenAsync(env);
+        if (text is not null)
+            _messages.Add(new Msg(false, text, env.SentAt));
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey) await SendAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Realtime.EnvelopeReceived -= OnEnvelope;
+        await Realtime.DisposeAsync();
+    }
+}

@@ -1,0 +1,128 @@
+name: deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # required for OIDC
+  contents: read
+
+env:
+  AZURE_RG: blackchannel
+  APP_NAME: blackchannel
+  SWA_LOCATION: eastasia
+  DOTNET_VERSION: '8.0.x'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure resource group exists
+        run: az group create -n ${{ env.AZURE_RG }} -l australiaeast --only-show-errors
+
+      - name: Deploy infra (Bicep)
+        id: infra
+        uses: azure/arm-deploy@v2
+        with:
+          scope: resourcegroup
+          resourceGroupName: ${{ env.AZURE_RG }}
+          template: infra/main.bicep
+          parameters: appName=${{ env.APP_NAME }} swaLocation=${{ env.SWA_LOCATION }}
+          failOnStdErr: false
+
+      - name: Capture infra outputs
+        id: outs
+        shell: bash
+        run: |
+          echo "functionName=${{ steps.infra.outputs.functionName }}"     >> "$GITHUB_OUTPUT"
+          echo "functionHost=${{ steps.infra.outputs.functionHost }}"     >> "$GITHUB_OUTPUT"
+          echo "staticSiteName=${{ steps.infra.outputs.staticSiteName }}" >> "$GITHUB_OUTPUT"
+          echo "staticSiteHost=${{ steps.infra.outputs.staticSiteHost }}" >> "$GITHUB_OUTPUT"
+          echo "signalRName=${{ steps.infra.outputs.signalRName }}"       >> "$GITHUB_OUTPUT"
+
+      - name: Set Function PUBLIC_SITE_URL
+        run: |
+          az functionapp config appsettings set \
+            -g ${{ env.AZURE_RG }} -n ${{ steps.outs.outputs.functionName }} \
+            --settings "PUBLIC_SITE_URL=https://${{ steps.outs.outputs.staticSiteHost }}"
+
+      # ---------- Functions ----------
+      - name: Publish Functions
+        run: dotnet publish src/BlackChannel.Functions -c Release -o publish/functions
+
+      - name: Zip Functions
+        run: |
+          cd publish/functions
+          zip -r ../functions.zip .
+
+      - name: Deploy Functions
+        # config-zip is the supported Flex Consumption path; `deploy --type zip` returns 415 on Flex.
+        run: |
+          az functionapp deployment source config-zip \
+            -g ${{ env.AZURE_RG }} -n ${{ steps.outs.outputs.functionName }} \
+            --src publish/functions.zip
+
+      # ---------- Blazor WASM ----------
+      - name: Patch Blazor config + CSP
+        shell: bash
+        run: |
+          FUNC_HOST="${{ steps.outs.outputs.functionHost }}"
+          SIGNALR_HOST="${{ steps.outs.outputs.signalRName }}.service.signalr.net"
+          jq --arg api "https://${FUNC_HOST}/api/" '.apiBaseUrl = $api' \
+            src/BlackChannel.Web/wwwroot/appsettings.json > /tmp/appsettings.json
+          mv /tmp/appsettings.json src/BlackChannel.Web/wwwroot/appsettings.json
+          CSP="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://${FUNC_HOST} wss://${SIGNALR_HOST} https://${SIGNALR_HOST}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+          jq --arg csp "$CSP" '.globalHeaders."Content-Security-Policy" = $csp' \
+            src/BlackChannel.Web/wwwroot/staticwebapp.config.json > /tmp/swa.json
+          mv /tmp/swa.json src/BlackChannel.Web/wwwroot/staticwebapp.config.json
+
+      - name: Publish Blazor WASM
+        run: dotnet publish src/BlackChannel.Web -c Release -o publish/web
+
+      - name: Get SWA deployment token
+        id: swatoken
+        shell: bash
+        run: |
+          TOKEN=$(az staticwebapp secrets list -n ${{ steps.outs.outputs.staticSiteName }} \
+            -g ${{ env.AZURE_RG }} --query "properties.apiKey" -o tsv)
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy Blazor to SWA
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.swatoken.outputs.token }}
+          action: upload
+          app_location: publish/web/wwwroot
+          skip_app_build: true
+          skip_api_build: true
+
+      # ---------- CORS ----------
+      - name: Allow SWA origin in Function CORS
+        run: |
+          SWA_ORIGIN="https://${{ steps.outs.outputs.staticSiteHost }}"
+          CURRENT=$(az functionapp cors show -g ${{ env.AZURE_RG }} -n ${{ steps.outs.outputs.functionName }} --query "allowedOrigins" -o tsv)
+          if ! echo "$CURRENT" | grep -q "$SWA_ORIGIN"; then
+            az functionapp cors add -g ${{ env.AZURE_RG }} -n ${{ steps.outs.outputs.functionName }} --allowed-origins "$SWA_ORIGIN"
+          fi
+
+      - name: Summary
+        run: |
+          echo "::notice title=Site::https://${{ steps.outs.outputs.staticSiteHost }}"
+          echo "::notice title=API::https://${{ steps.outs.outputs.functionHost }}/api"

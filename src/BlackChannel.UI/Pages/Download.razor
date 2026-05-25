@@ -1,0 +1,68 @@
+@page "/download"
+
+<div class="panel download-panel">
+    <h2>Get BlackChannel on your device</h2>
+    <p class="muted">
+        BlackChannel runs in any browser. You can also install it as an app — no app store
+        needed. Encryption works identically everywhere: keys are generated and messages
+        encrypted on your device.
+    </p>
+
+    <!-- iPhone / Android: install from the browser (PWA) -->
+    <details class="dl-accordion">
+        <summary><span class="dl-ico" aria-hidden="true">📲</span> Install from your browser (iPhone &amp; Android)</summary>
+        <div class="dl-body">
+            <p>The quickest way — and the only way on iPhone. Installs like an app and opens full-screen.</p>
+            <p><strong>iPhone / iPad (Safari):</strong></p>
+            <ol>
+                <li>Open this site in <strong>Safari</strong>.</li>
+                <li>Tap <strong>Share</strong> (the square with an arrow).</li>
+                <li>Choose <strong>Add to Home Screen</strong> → <strong>Add</strong>.</li>
+            </ol>
+            <p style="margin-top:10px"><strong>Android (Chrome):</strong></p>
+            <ol>
+                <li>Open this site in <strong>Chrome</strong>.</li>
+                <li>Tap <strong>⋮</strong> → <strong>Install app</strong> (or "Add to Home screen").</li>
+            </ol>
+        </div>
+    </details>
+
+    <!-- Android native APK -->
+    <details class="dl-accordion">
+        <summary><span class="dl-ico" aria-hidden="true">🤖</span> Android app (.apk)</summary>
+        <div class="dl-body">
+            <p>A native build you install directly — not via the Play Store. Android 8+.</p>
+            <a class="btn primary download-btn" href="download/blackchannel-android.apk" download>Download the APK</a>
+            <p style="margin-top:12px"><strong>How to install:</strong></p>
+            <ol>
+                <li>Tap the button above on your Android phone.</li>
+                <li>Open the downloaded file (notifications, or Files → Downloads).</li>
+                <li>If prompted, allow your browser to install "unknown apps" this once.</li>
+                <li>Tap <strong>Install</strong> → <strong>Open</strong>.</li>
+            </ol>
+            <p>The "unknown apps" prompt appears for anything installed outside the Play Store. The
+               source is public, so you can also build the APK yourself.</p>
+        </div>
+    </details>
+
+    <!-- Windows desktop -->
+    <details class="dl-accordion">
+        <summary><span class="dl-ico" aria-hidden="true">🪟</span> Windows desktop (.zip)</summary>
+        <div class="dl-body">
+            <p>Self-contained — extract anywhere and run. No installer or admin rights. Windows 10/11 x64.</p>
+            <a class="btn primary download-btn" href="download/blackchannel-windows.zip" download>Download for Windows (ZIP)</a>
+            <p style="margin-top:12px"><strong>How to install:</strong></p>
+            <ol>
+                <li>Download and right-click the ZIP → <strong>Extract All</strong>.</li>
+                <li>Open the folder and run <strong>BlackChannel.App.exe</strong>.</li>
+                <li>SmartScreen may warn "unknown publisher" → <strong>More info → Run anyway</strong>.</li>
+                <li>To uninstall, just delete the folder.</li>
+            </ol>
+        </div>
+    </details>
+
+    <p class="notice">
+        Whichever you choose, your private key stays on that device. A new device gets its own
+        key — that's why only your devices can read your messages.
+    </p>
+</div>

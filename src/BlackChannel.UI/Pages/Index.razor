@@ -1,0 +1,48 @@
+@page "/"
+@inject NavigationManager Nav
+@inject IMessageCrypto Crypto
+@inject ApiClient Api
+
+<div class="hero">
+    <h2>Private messages your mates can read — and nobody else.</h2>
+    <p>
+        BlackChannel encrypts every message inside your browser. The server only ever
+        sees scrambled ciphertext, so we can't read your messages even if we wanted to.
+        Invite a mate with a link and start talking.
+    </p>
+
+    <div class="cta">
+        <button class="primary" @onclick="StartAsync" disabled="@_busy">
+            @(_busy ? "Setting up your keys…" : "Get started")
+        </button>
+        <button class="link" @onclick="@(() => Nav.NavigateTo("invite"))">Invite a mate</button>
+    </div>
+
+    <div class="pillars">
+        <div class="pillar">
+            <h3>🔒 End-to-end encrypted</h3>
+            <p>ECDH key agreement + AES-256-GCM, performed on your device. A fresh key per message.</p>
+        </div>
+        <div class="pillar">
+            <h3>🙈 We're blind</h3>
+            <p>No plaintext and no private keys ever reach the server. It's a dumb, encrypted mailbox.</p>
+        </div>
+        <div class="pillar">
+            <h3>🔓 Verifiable</h3>
+            <p>The code is open. Read the crypto for yourself, or build and host your own copy.</p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool _busy;
+
+    private async Task StartAsync()
+    {
+        _busy = true;
+        // Make sure this device has an identity key, and publish its public half.
+        var pub = await Crypto.EnsureIdentityAsync();
+        await Api.PublishKeyAsync(new KeyBundle { IdentityPublicKey = pub, DeviceId = "default" });
+        Nav.NavigateTo("invite");
+    }
+}

@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BlackChannel.Shared/BlackChannel.Shared.csproj" />
+    <Project Path="src/BlackChannel.UI/BlackChannel.UI.csproj" />
+    <Project Path="src/BlackChannel.Functions/BlackChannel.Functions.csproj" />
+    <Project Path="src/BlackChannel.Web/BlackChannel.Web.csproj" />
+    <Project Path="src/BlackChannel.App/BlackChannel.App.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BlackChannel.Tests/BlackChannel.Tests.csproj" />
+  </Folder>
+  <Folder Name="/solution/">
+    <File Path="README.md" />
+    <File Path="deploy.ps1" />
+    <File Path="destroy.ps1" />
+    <File Path="infra/main.bicep" />
+  </Folder>
+</Solution>

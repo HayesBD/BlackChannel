@@ -1,0 +1,25 @@
+{
+  "version": "2.0",
+  "logging": {
+    "applicationInsights": {
+      "samplingSettings": {
+        "isEnabled": true,
+        "maxTelemetryItemsPerSecond": 1,
+        "excludedTypes": "Request;Dependency;PageView;Trace"
+      }
+    },
+    "logLevel": {
+      "default": "Error",
+      "Host.Results": "Error",
+      "Function": "Warning",
+      "Host.Aggregator": "Error"
+    }
+  },
+  "extensions": {
+    "http": {
+      "maxOutstandingRequests": 200,
+      "maxConcurrentRequests": 100
+    }
+  },
+  "functionTimeout": "00:00:30"
+}

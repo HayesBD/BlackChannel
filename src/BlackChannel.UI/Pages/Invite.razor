@@ -1,0 +1,52 @@
+@page "/invite"
+@inject ApiClient Api
+@inject IJSRuntime Js
+@inject NavigationManager Nav
+
+<div class="panel">
+    <h2>Invite a mate</h2>
+    <p>
+        Generate a one-time link and send it to your mate however you like — text, email,
+        whatever. When they open it and join, you'll be able to message each other.
+    </p>
+
+    @if (_invite is null)
+    {
+        <button class="primary" @onclick="CreateAsync" disabled="@_busy">
+            @(_busy ? "Generating…" : "Generate invite link")
+        </button>
+    }
+    else
+    {
+        <div class="invite-link">
+            <input readonly value="@_invite.JoinUrl" @ref="_input" />
+            <button @onclick="CopyAsync">Copy</button>
+        </div>
+        <p class="notice">
+            Single use, expires @_invite.ExpiresAt.ToLocalTime().ToString("d MMM yyyy").
+            The link carries no keys — it's just a handshake.
+        </p>
+        <button class="link" @onclick="CreateAsync">Generate another</button>
+    }
+
+    <p style="margin-top:24px"><a href="chat">Go to your conversations →</a></p>
+</div>
+
+@code {
+    private CreateInviteResponse? _invite;
+    private bool _busy;
+    private ElementReference _input;
+
+    private async Task CreateAsync()
+    {
+        _busy = true;
+        _invite = await Api.CreateInviteAsync();
+        _busy = false;
+    }
+
+    private async Task CopyAsync()
+    {
+        if (_invite is not null)
+            await Js.InvokeVoidAsync("navigator.clipboard.writeText", _invite.JoinUrl);
+    }
+}

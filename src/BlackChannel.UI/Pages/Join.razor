@@ -1,0 +1,48 @@
+@page "/join/{Code}"
+@inject ApiClient Api
+@inject IMessageCrypto Crypto
+@inject NavigationManager Nav
+
+<div class="panel">
+    <h2>Join a conversation</h2>
+
+    @if (_busy)
+    {
+        <p>Setting up your encryption keys and redeeming your invite…</p>
+    }
+    else if (_error is not null)
+    {
+        <p class="notice warn">@_error</p>
+        <a href="/">Back to start</a>
+    }
+    else if (_inviterId is not null)
+    {
+        <p>You're connected with <strong>@_inviterId</strong>. Your messages will be encrypted end-to-end.</p>
+        <button class="primary" @onclick="@(() => Nav.NavigateTo($"chat?with={_inviterId}"))">
+            Start messaging
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter] public string Code { get; set; } = "";
+
+    private bool _busy = true;
+    private string? _error;
+    private string? _inviterId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Make sure this device has a key and it's published, so the inviter can message us.
+        var pub = await Crypto.EnsureIdentityAsync();
+        await Api.PublishKeyAsync(new KeyBundle { IdentityPublicKey = pub, DeviceId = "default" });
+
+        var result = await Api.RedeemInviteAsync(Code);
+        if (result is { Success: true })
+            _inviterId = result.InviterUserId;
+        else
+            _error = result?.Error ?? "Couldn't redeem that invite.";
+
+        _busy = false;
+    }
+}

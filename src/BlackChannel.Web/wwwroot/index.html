@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <title>BlackChannel — end-to-end encrypted messaging</title>
+    <base href="/" />
+    <link href="_content/BlackChannel.UI/css/site.css" rel="stylesheet" />
+
+    <!-- PWA: installable to the home screen, no app store needed. -->
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#0d0f12" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="BlackChannel" />
+
+    <!-- Branding icons. Drop the files into wwwroot/ (see /branding/README.md). -->
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+    <meta name="referrer" content="no-referrer" />
+</head>
+<body>
+    <div id="app">Loading…</div>
+
+    <div id="blazor-error-ui">
+        Something went wrong. <a href="" class="reload">Reload</a>
+        <a class="dismiss">🗙</a>
+    </div>
+
+    <script src="_content/BlackChannel.UI/js/crypto.js"></script>
+    <script src="_framework/blazor.webassembly.js"></script>
+    <script>
+        // Register the service worker so the app is installable / works offline-ish.
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js');
+        }
+    </script>
+</body>
+</html>

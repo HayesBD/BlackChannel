@@ -1,0 +1,438 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.41.2.15936",
+      "templateHash": "9780113950487555286"
+    }
+  },
+  "parameters": {
+    "appName": {
+      "type": "string",
+      "defaultValue": "blackchannel",
+      "minLength": 3,
+      "maxLength": 16
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Region for storage + function app + SignalR. Defaults to the RG location."
+      }
+    },
+    "swaLocation": {
+      "type": "string",
+      "defaultValue": "eastasia",
+      "metadata": {
+        "description": "Region for the Static Web App. SWA is not in Australia regions; East Asia is closest."
+      }
+    },
+    "allowedOrigins": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Origins allowed to call the Function API (the SWA hostname is added automatically)."
+      }
+    },
+    "signalRSku": {
+      "type": "string",
+      "defaultValue": "Free_F1",
+      "allowedValues": [
+        "Free_F1",
+        "Standard_S1"
+      ],
+      "metadata": {
+        "description": "Azure SignalR SKU. Free_F1 caps at 20 concurrent connections / 20k msgs per day."
+      }
+    },
+    "budgetAmountUsd": {
+      "type": "int",
+      "defaultValue": 25,
+      "metadata": {
+        "description": "Monthly cost cap in USD. Email alerts at 50/80/100%."
+      }
+    },
+    "undeliveredRetentionDays": {
+      "type": "int",
+      "defaultValue": 14,
+      "minValue": 1,
+      "maxValue": 90,
+      "metadata": {
+        "description": "Days an UNDELIVERED ciphertext envelope is kept before auto-deletion. Lower = less data held. Delivered envelopes are deleted immediately on sync."
+      }
+    },
+    "budgetEmail": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Email for budget alerts. Leave blank to skip creating the budget."
+      }
+    }
+  },
+  "variables": {
+    "suffix": "[uniqueString(resourceGroup().id, parameters('appName'))]",
+    "storageName": "[toLower(format('st{0}{1}', parameters('appName'), substring(variables('suffix'), 0, 6)))]",
+    "funcName": "[format('func-{0}', parameters('appName'))]",
+    "swaName": "[format('swa-{0}', parameters('appName'))]",
+    "planName": "[format('plan-{0}', parameters('appName'))]",
+    "signalRName": "[format('signalr-{0}', parameters('appName'))]",
+    "deployContainer": "deploymentpackage",
+    "envelopeContainer": "envelopes",
+    "tableNames": [
+      "Users",
+      "Invites"
+    ],
+    "blobDataContributorRoleId": "ba92f5b4-2d11-453d-a403-e96b0029c9fe",
+    "tableDataContributorRoleId": "0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2023-05-01",
+      "name": "[variables('storageName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "minimumTlsVersion": "TLS1_2",
+        "allowBlobPublicAccess": false,
+        "allowSharedKeyAccess": true,
+        "supportsHttpsTrafficOnly": true,
+        "publicNetworkAccess": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}', variables('storageName'), 'default')]",
+      "properties": {
+        "deleteRetentionPolicy": {
+          "enabled": false
+        },
+        "isVersioningEnabled": false
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}/{2}', variables('storageName'), 'default', variables('envelopeContainer'))]",
+      "properties": {
+        "publicAccess": "None"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('storageName'), 'default')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}/{2}', variables('storageName'), 'default', variables('deployContainer'))]",
+      "properties": {
+        "publicAccess": "None"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('storageName'), 'default')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/tableServices",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}', variables('storageName'), 'default')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
+      ]
+    },
+    {
+      "copy": {
+        "name": "tables",
+        "count": "[length(variables('tableNames'))]"
+      },
+      "type": "Microsoft.Storage/storageAccounts/tableServices/tables",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}/{2}', variables('storageName'), 'default', variables('tableNames')[copyIndex()])]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/tableServices', variables('storageName'), 'default')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/managementPolicies",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}/{1}', variables('storageName'), 'default')]",
+      "properties": {
+        "policy": {
+          "rules": [
+            {
+              "enabled": true,
+              "name": "expire-undelivered-envelopes",
+              "type": "Lifecycle",
+              "definition": {
+                "filters": {
+                  "blobTypes": [
+                    "blockBlob"
+                  ],
+                  "prefixMatch": [
+                    "[format('{0}/', variables('envelopeContainer'))]"
+                  ]
+                },
+                "actions": {
+                  "baseBlob": {
+                    "delete": {
+                      "daysAfterModificationGreaterThan": "[parameters('undeliveredRetentionDays')]"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.SignalRService/signalR",
+      "apiVersion": "2024-03-01",
+      "name": "[variables('signalRName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[parameters('signalRSku')]",
+        "tier": "[split(parameters('signalRSku'), '_')[0]]",
+        "capacity": 1
+      },
+      "kind": "SignalR",
+      "properties": {
+        "features": [
+          {
+            "flag": "ServiceMode",
+            "value": "Serverless"
+          },
+          {
+            "flag": "EnableConnectivityLogs",
+            "value": "false"
+          },
+          {
+            "flag": "EnableMessagingLogs",
+            "value": "false"
+          }
+        ],
+        "publicNetworkAccess": "Enabled",
+        "disableLocalAuth": false,
+        "cors": {
+          "allowedOrigins": "[union(parameters('allowedOrigins'), createArray(format('https://{0}', reference(resourceId('Microsoft.Web/staticSites', variables('swaName')), '2023-12-01').defaultHostname)))]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/staticSites', variables('swaName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2023-12-01",
+      "name": "[variables('planName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "FC1",
+        "tier": "FlexConsumption"
+      },
+      "properties": {
+        "reserved": true
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2023-12-01",
+      "name": "[variables('funcName')]",
+      "location": "[parameters('location')]",
+      "kind": "functionapp,linux",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('planName'))]",
+        "httpsOnly": true,
+        "functionAppConfig": {
+          "deployment": {
+            "storage": {
+              "type": "blobContainer",
+              "value": "[format('{0}{1}', reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), '2023-05-01').primaryEndpoints.blob, variables('deployContainer'))]",
+              "authentication": {
+                "type": "SystemAssignedIdentity"
+              }
+            }
+          },
+          "runtime": {
+            "name": "dotnet-isolated",
+            "version": "8.0"
+          },
+          "scaleAndConcurrency": {
+            "maximumInstanceCount": 5,
+            "instanceMemoryMB": 2048
+          }
+        },
+        "siteConfig": {
+          "minTlsVersion": "1.2",
+          "ftpsState": "Disabled",
+          "cors": {
+            "allowedOrigins": "[union(parameters('allowedOrigins'), createArray(format('https://{0}', reference(resourceId('Microsoft.Web/staticSites', variables('swaName')), '2023-12-01').defaultHostname)))]",
+            "supportCredentials": false
+          },
+          "appSettings": [
+            {
+              "name": "AzureWebJobsStorage__accountName",
+              "value": "[variables('storageName')]"
+            },
+            {
+              "name": "STORAGE_ACCOUNT_NAME",
+              "value": "[variables('storageName')]"
+            },
+            {
+              "name": "ENVELOPE_CONTAINER",
+              "value": "[variables('envelopeContainer')]"
+            },
+            {
+              "name": "AzureSignalRConnectionString",
+              "value": "[listKeys(resourceId('Microsoft.SignalRService/signalR', variables('signalRName')), '2024-03-01').primaryConnectionString]"
+            },
+            {
+              "name": "ENTRA_AUTHORITY",
+              "value": ""
+            },
+            {
+              "name": "ENTRA_AUDIENCE",
+              "value": ""
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', variables('storageName'), 'default', variables('deployContainer'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices/containers', variables('storageName'), 'default', variables('envelopeContainer'))]",
+        "[resourceId('Microsoft.Web/serverfarms', variables('planName'))]",
+        "[resourceId('Microsoft.SignalRService/signalR', variables('signalRName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]",
+        "[resourceId('Microsoft.Web/staticSites', variables('swaName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), resourceId('Microsoft.Web/sites', variables('funcName')), variables('blobDataContributorRoleId'))]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('blobDataContributorRoleId'))]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('funcName')), '2023-12-01', 'full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('funcName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), resourceId('Microsoft.Web/sites', variables('funcName')), variables('tableDataContributorRoleId'))]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('tableDataContributorRoleId'))]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('funcName')), '2023-12-01', 'full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('funcName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Web/staticSites",
+      "apiVersion": "2023-12-01",
+      "name": "[variables('swaName')]",
+      "location": "[parameters('swaLocation')]",
+      "sku": {
+        "name": "Free",
+        "tier": "Free"
+      },
+      "properties": {
+        "allowConfigFileUpdates": true
+      }
+    },
+    {
+      "condition": "[not(empty(parameters('budgetEmail')))]",
+      "type": "Microsoft.Consumption/budgets",
+      "apiVersion": "2023-05-01",
+      "name": "monthly-cap",
+      "properties": {
+        "category": "Cost",
+        "amount": "[parameters('budgetAmountUsd')]",
+        "timeGrain": "Monthly",
+        "timePeriod": {
+          "startDate": "2026-05-01T00:00:00Z",
+          "endDate": "2030-12-01T00:00:00Z"
+        },
+        "notifications": {
+          "actualOver50": {
+            "enabled": true,
+            "operator": "GreaterThan",
+            "threshold": 50,
+            "contactEmails": [
+              "[parameters('budgetEmail')]"
+            ],
+            "thresholdType": "Actual"
+          },
+          "actualOver80": {
+            "enabled": true,
+            "operator": "GreaterThan",
+            "threshold": 80,
+            "contactEmails": [
+              "[parameters('budgetEmail')]"
+            ],
+            "thresholdType": "Actual"
+          },
+          "actualOver100": {
+            "enabled": true,
+            "operator": "GreaterThan",
+            "threshold": 100,
+            "contactEmails": [
+              "[parameters('budgetEmail')]"
+            ],
+            "thresholdType": "Actual"
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "functionName": {
+      "type": "string",
+      "value": "[variables('funcName')]"
+    },
+    "functionHost": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Web/sites', variables('funcName')), '2023-12-01').defaultHostName]"
+    },
+    "staticSiteName": {
+      "type": "string",
+      "value": "[variables('swaName')]"
+    },
+    "staticSiteHost": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Web/staticSites', variables('swaName')), '2023-12-01').defaultHostname]"
+    },
+    "storageAccount": {
+      "type": "string",
+      "value": "[variables('storageName')]"
+    },
+    "signalRName": {
+      "type": "string",
+      "value": "[variables('signalRName')]"
+    }
+  }
+}

@@ -1,0 +1,76 @@
+# =============================================================================
+# BlackChannel — .gitignore
+# =============================================================================
+
+# Local-only build artefacts produced by deploy.ps1 / CI
+publish/
+publish.zip
+*.sln.bak
+azurite-data/
+
+# Native app packages — large and rebuildable; deploy builds them into wwwroot/download.
+src/BlackChannel.Web/wwwroot/download/*.apk
+src/BlackChannel.Web/wwwroot/download/*.zip
+src/BlackChannel.Web/wwwroot/download/*.aab
+
+# Functions local settings can contain connection strings / dev secrets
+local.settings.json
+
+# Build results
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio
+.vs/
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Blazor WASM service worker / boot artefacts (regenerated on publish)
+service-worker-assets.js
+
+# Test results / coverage
+[Tt]est[Rr]esult*/
+coverage*.json
+coverage*.xml
+coverage*.info
+*.coverage
+*.coveragexml
+
+# NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+project.lock.json
+project.fragment.lock.json
+
+# Node (SWA CLI is installed globally; node_modules only appear if used locally)
+node_modules/
+
+# Secrets / certs that must never be committed
+*.pfx
+*.publishsettings
+*.azurePubxml
+*.pubxml
+.env
+
+# OS / editor noise
+~$*
+*~
+*.tmp
+Thumbs.db
+.DS_Store
