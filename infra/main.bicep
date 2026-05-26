@@ -34,12 +34,14 @@ param undeliveredRetentionDays int = 14
 @description('Email for budget alerts. Leave blank to skip creating the budget.')
 param budgetEmail string = ''
 
-var suffix          = uniqueString(resourceGroup().id, appName)
-var storageName     = toLower('st${appName}${substring(suffix, 0, 6)}')
-var funcName        = 'func-${appName}'
-var swaName         = 'swa-${appName}'
-var planName        = 'plan-${appName}'
-var signalRName     = 'signalr-${appName}'
+// 6-char suffix from the RG id keeps globally-unique names (func/SWA/SignalR hostnames)
+// distinct per deployment, so anyone can deploy their own without name collisions.
+var suffix          = substring(uniqueString(resourceGroup().id, appName), 0, 6)
+var storageName     = toLower('st${appName}${suffix}')
+var funcName        = 'func-${appName}-${suffix}'
+var swaName         = 'swa-${appName}-${suffix}'
+var planName        = 'plan-${appName}-${suffix}'
+var signalRName     = 'signalr-${appName}-${suffix}'
 var deployContainer = 'deploymentpackage'
 var envelopeContainer = 'envelopes'
 

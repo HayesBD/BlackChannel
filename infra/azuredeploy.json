@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "9780113950487555286"
+      "templateHash": "15504545990787418833"
     }
   },
   "parameters": {
@@ -72,12 +72,12 @@
     }
   },
   "variables": {
-    "suffix": "[uniqueString(resourceGroup().id, parameters('appName'))]",
-    "storageName": "[toLower(format('st{0}{1}', parameters('appName'), substring(variables('suffix'), 0, 6)))]",
-    "funcName": "[format('func-{0}', parameters('appName'))]",
-    "swaName": "[format('swa-{0}', parameters('appName'))]",
-    "planName": "[format('plan-{0}', parameters('appName'))]",
-    "signalRName": "[format('signalr-{0}', parameters('appName'))]",
+    "suffix": "[substring(uniqueString(resourceGroup().id, parameters('appName')), 0, 6)]",
+    "storageName": "[toLower(format('st{0}{1}', parameters('appName'), variables('suffix')))]",
+    "funcName": "[format('func-{0}-{1}', parameters('appName'), variables('suffix'))]",
+    "swaName": "[format('swa-{0}-{1}', parameters('appName'), variables('suffix'))]",
+    "planName": "[format('plan-{0}-{1}', parameters('appName'), variables('suffix'))]",
+    "signalRName": "[format('signalr-{0}-{1}', parameters('appName'), variables('suffix'))]",
     "deployContainer": "deploymentpackage",
     "envelopeContainer": "envelopes",
     "tableNames": [

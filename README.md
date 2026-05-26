@@ -92,11 +92,15 @@ If your resource group name isn't `blackchannel`, edit `AZURE_RG` at the top of
 
 ### Step 4 — Deploy
 
-Push any change to `main` (or **Actions → deploy → Run workflow**). The workflow builds
-the Functions backend and the Blazor site and deploys both. It prints your site URL in
-the run summary. Done — that's your own private BlackChannel.
+Push any change to `main` (or **Actions → deploy → Run workflow**). The workflow deploys
+the infrastructure, the Functions backend and the Blazor site, **and builds the native
+Android + Windows apps** (baked with your API URL) so the in-app download buttons work. It
+prints your site URL in the run summary. Done — that's your own private BlackChannel.
 
-> Want real sign-in instead of the local dev fallback? Create a
+> **⚠️ Set up sign-in before sharing it.** With no identity provider configured, the app
+> runs in **open dev-user mode** — anyone can claim any identity, which would let them
+> publish a key under someone else's name. Fine for trying it solo; **not** safe for real
+> use. To lock it down, create a
 > [Microsoft Entra External ID](https://learn.microsoft.com/entra/external-id/customers/) tenant
 > (free tier), register a SPA, then set `ENTRA_AUTHORITY` + `ENTRA_AUDIENCE` on the Function
 > app and `entra:authority`/`entra:clientId` in `wwwroot/appsettings.json`.
@@ -147,6 +151,10 @@ browser gets its own identity, so open a second browser to message yourself via 
 | `src/BlackChannel.Functions` | Azure Functions (.NET 8 isolated, Flex Consumption). The blind mailbox. |
 | `src/BlackChannel.Web`       | Blazor WebAssembly site (PWA). Hosts the shared UI. |
 | `src/BlackChannel.App`       | MAUI native app (Android + Windows) — same shared UI, installable off-store. |
+
+> The local run above only builds `BlackChannel.Functions` + `BlackChannel.Web`. Building the
+> whole solution (or `BlackChannel.App`) needs the MAUI workloads:
+> `dotnet workload install maui android`. CI handles this automatically.
 
 Start with [`docs/00-what-this-is.md`](docs/00-what-this-is.md). The encryption
 specifically: [`docs/02-e2ee-crypto.md`](docs/02-e2ee-crypto.md).
